@@ -57,17 +57,17 @@ type roomTemplateData struct {
 
 // hanlders
 func Get(c echo.Context) error {
-	username, err := getCookieUsername(c)
+	requestedUsername, err := getNonEmptyCookie(c, COOKIE_REQUESTED_USERNAME)
 	if err != nil {
 		return c.String(http.StatusUnauthorized, "Unauthorized")
 	}
 
 	roomId := c.Param(PATH_ROOM_ID)
-	room := getRoom(roomId)
+	// TODO: validate roomId
+	room := getOrCreateRoom(roomId)
 
-	if room == nil {
-		return errRoomNotFound(c)
-	}
+	username := room.generateUniqueUsername(requestedUsername)
+	c.SetCookie(newCookie(COOKIE_USERNAME, username, "/room/"+roomId))
 
 	data := roomTemplateData{
 		ID:       roomId,
@@ -79,17 +79,13 @@ func Get(c echo.Context) error {
 }
 
 func GetEvents(c echo.Context) error {
-	username, err := getCookieUsername(c)
+	username, err := getNonEmptyCookie(c, COOKIE_USERNAME)
 	if err != nil {
 		return c.String(http.StatusUnauthorized, "Unauthorized")
 	}
 
 	roomId := c.Param(PATH_ROOM_ID)
-	room := getRoom(roomId)
-
-	if room == nil {
-		return errRoomNotFound(c)
-	}
+	room := getOrCreateRoom(roomId)
 
 	// sse setup
 	w := c.Response()
@@ -139,7 +135,7 @@ func GetEvents(c echo.Context) error {
 }
 
 func PatchPixel(c echo.Context) error {
-	username, err := getCookieUsername(c)
+	username, err := getNonEmptyCookie(c, COOKIE_USERNAME)
 	if err != nil {
 		return c.String(http.StatusUnauthorized, "Unauthorized")
 	}
