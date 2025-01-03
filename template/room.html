@@ -3,168 +3,182 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Hello, world!</title>
+    <title>Room#{{.ID}}</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="description" content="" />
     <link rel="icon" href="favicon.png" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
 </head>
 
-<body>
-    <h1>Room #{{.ID}}</h1>
-    <h2 id="active-user">...</h1>
+<body style="padding: 16px;">
+    <div class="section">
+        <h6 class="">Room#{{.ID}}</h6>
+        <h5 class="title is-5" id="active-user">...</h5>
+        <div id="alone-warning" hidden><span class="tag is-warning">You're alone</span></div>
+    </div>
 
+    <div class="container">
+        <div style="max-width: 768px; margin: auto;">
+            <canvas id="image-grid" style="width:100%;"></canvas>
+        </div>
+    </div>
+
+    <div class="section">
+        <h6 class="title is-6">Players:</h6>
         <p id="users">Loading...</p>
-        <canvas id="image-grid" style="width:100%;"></canvas>
+    </div>
 
-        <script>
-            // state
-            const username = "{{.Username}}";
-            let pixels = [];
+    <script>
+        // state
+        const username = "{{.Username}}";
+        let pixels = [];
 
-            // image rendering
-            const imageGrid = document.getElementById("image-grid");
+        // image rendering
+        const imageGrid = document.getElementById("image-grid");
 
-            function drawImageGrid(hoverX = null, hoverY = null) {
-                imageGrid.width = imageGrid.width;
-                const gridSize = pixels.length;
-                if (gridSize == 0) {
-                    return;
-                }
+        function drawImageGrid(hoverX = null, hoverY = null) {
+            imageGrid.width = imageGrid.width;
+            const gridSize = pixels.length;
+            if (gridSize == 0) {
+                return;
+            }
 
-                const ctx = imageGrid.getContext("2d");
-                ctx.strokeStyle = "black";
-                const pixelSize = imageGrid.width / pixels.length;
+            const ctx = imageGrid.getContext("2d");
+            ctx.strokeStyle = "black";
+            const pixelSize = imageGrid.width / pixels.length;
 
-                for (let i = 0; i < gridSize; i++) {
-                    for (let j = 0; j < gridSize; j++) {
-                        const color = pixels[i][j];
-                        const x = pixelSize * j;
-                        const y = pixelSize * i;
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const color = pixels[i][j];
+                    const x = pixelSize * j;
+                    const y = pixelSize * i;
 
-                        if (color != null) {
-                            ctx.fillStyle = color;
-                            ctx.fillRect(x, y, pixelSize, pixelSize);
-                        }
-
-                        if (hoverX == j && hoverY == i) {
-                            ctx.fillStyle = "#00000022";
-                            ctx.fillRect(x, y, pixelSize, pixelSize);
-                        }
-
-                        ctx.strokeRect(x, y, pixelSize, pixelSize);
+                    if (color != null) {
+                        ctx.fillStyle = color;
+                        ctx.fillRect(x, y, pixelSize, pixelSize);
                     }
+
+                    if (hoverX == j && hoverY == i) {
+                        ctx.fillStyle = "#00000022";
+                        ctx.fillRect(x, y, pixelSize, pixelSize);
+                    }
+
+                    ctx.strokeRect(x, y, pixelSize, pixelSize);
                 }
             }
+        }
 
-            // image interactions
-            function getPixelCoordsFromEvent(event) {
-                const gridWidth = imageGrid.getBoundingClientRect().width;
-                const pixelSize = gridWidth / pixels.length;
+        // image interactions
+        function getPixelCoordsFromEvent(event) {
+            const gridWidth = imageGrid.getBoundingClientRect().width;
+            const pixelSize = gridWidth / pixels.length;
 
-                const x = Math.floor(event.offsetX / pixelSize);
-                const y = Math.floor(event.offsetY / pixelSize);
+            const x = Math.floor(event.offsetX / pixelSize);
+            const y = Math.floor(event.offsetY / pixelSize);
 
-                return { x, y };
-            }
+            return { x, y };
+        }
 
-            imageGrid.addEventListener("mousemove", (event) => {
-                const { x, y } = getPixelCoordsFromEvent(event);
-                const color = pixels[y][x];
+        imageGrid.addEventListener("mousemove", (event) => {
+            const { x, y } = getPixelCoordsFromEvent(event);
+            const color = pixels[y][x];
 
-                if (color == null) {
-                    drawImageGrid(x, y);
-                } else {
-                    // reset hover
-                    drawImageGrid();
-                }
-            });
-
-            imageGrid.addEventListener("mouseleave", () => {
+            if (color == null) {
+                drawImageGrid(x, y);
+            } else {
                 // reset hover
                 drawImageGrid();
-            });
+            }
+        });
 
-            imageGrid.addEventListener("click", (event) => {
-                const { x, y } = getPixelCoordsFromEvent(event);
+        imageGrid.addEventListener("mouseleave", () => {
+            // reset hover
+            drawImageGrid();
+        });
 
-                const currentColor = pixels[y][x];
-                if (currentColor != null) {
-                    return;
-                }
+        imageGrid.addEventListener("click", (event) => {
+            const { x, y } = getPixelCoordsFromEvent(event);
 
-                sendPixelUpdate(x, y, "0000FF");
-            });
+            const currentColor = pixels[y][x];
+            if (currentColor != null) {
+                return;
+            }
 
-            // receiving updates
-            function parseGridData(data) {
-                const result = [];
-                const entries = data.split(",");
-                const gridSize = Number(entries.shift());
+            sendPixelUpdate(x, y, "0000FF");
+        });
 
-                let entriesIndex = 0;
-                for (let i = 0; i < gridSize; i++) {
-                    result.push(Array(gridSize).fill(null));
+        // receiving updates
+        function parseGridData(data) {
+            const result = [];
+            const entries = data.split(",");
+            const gridSize = Number(entries.shift());
 
-                    for (let j = 0; j < gridSize; j++) {
-                        const remoteValue = entries[entriesIndex];
-                        if (remoteValue != "-") {
-                            result[i][j] = "#" + remoteValue;
-                        }
-                        entriesIndex++;
+            let entriesIndex = 0;
+            for (let i = 0; i < gridSize; i++) {
+                result.push(Array(gridSize).fill(null));
+
+                for (let j = 0; j < gridSize; j++) {
+                    const remoteValue = entries[entriesIndex];
+                    if (remoteValue != "-") {
+                        result[i][j] = "#" + remoteValue;
                     }
+                    entriesIndex++;
                 }
-                return result;
             }
+            return result;
+        }
 
-            function parseUsersData(data) {
-                const entries = data.split(",");
-                const activeUser = entries.shift();
-                const users = entries;
+        function parseUsersData(data) {
+            const entries = data.split(",");
+            const activeUser = entries.shift();
+            const users = entries;
 
-                return { activeUser, users };
-            }
+            return { activeUser, users };
+        }
 
-            const eventSource = new EventSource("{{- .ID}}/events");
+        const eventSource = new EventSource("{{- .ID}}/events");
 
-            eventSource.addEventListener("grid", (event) => {
-                console.log(event.data);
-                pixels = parseGridData(event.data);
-                drawImageGrid();
-            })
+        eventSource.addEventListener("grid", (event) => {
+            console.log(event.data);
+            pixels = parseGridData(event.data);
+            drawImageGrid();
+        })
 
-            eventSource.addEventListener("users", (event) => {
-                console.log(event.data);
-                const { activeUser, users } = parseUsersData(event.data);
-                console.log("activeUser", activeUser, "username", username);
-                document.getElementById("active-user").innerText = activeUser + " is drawing" + (username == activeUser ? " (you)" : "");
-                document.getElementById("users").innerText = users.join(", ");
-            })
+        eventSource.addEventListener("users", (event) => {
+            console.log(event.data);
+            const { activeUser, users } = parseUsersData(event.data);
+            console.log("activeUser", activeUser, "username", username);
 
-            // sending updates
-            function sendPixelUpdate(x, y, color) {
-                fetch("{{- .ID}}/pixel", {
-                    method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        x: x,
-                        y: y,
-                        color: color,
-                    }),
-                });
-            }
+            document.getElementById("active-user").innerText = activeUser == username ? "Your turn" : activeUser + "'s turn";
+            document.getElementById("alone-warning").hidden = users.length > 1;
+            document.getElementById("users").innerText = "- " + users.join("\n- ");
+        })
 
-            // canvas sizing
-            function resizeCanvas() {
-                imageGrid.height = imageGrid.width;
-                drawImageGrid();
-            }
+        // sending updates
+        function sendPixelUpdate(x, y, color) {
+            fetch("{{- .ID}}/pixel", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    x: x,
+                    y: y,
+                    color: color,
+                }),
+            });
+        }
 
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
-            window.addEventListener('orientationchange', resizeCanvas);
-        </script>
+        // canvas sizing
+        function resizeCanvas() {
+            imageGrid.height = imageGrid.width;
+            drawImageGrid();
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
+    </script>
 </body>
 
 </html>
