@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Hello, world!</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="" />
+    <link rel="icon" href="favicon.png" />
+</head>
+
+<body>
+    <form id="join-form">
+        <label for="serverid-input">Server ID:</label><br />
+        <input type="text" id="serverid-input" name="serverid" autocomplete="off" />
+
+        <br />
+
+
+        <label for="username-input">Username:</label><br />
+        <input type="text" id="username-input" name="username" autocomplete="off" />
+
+        <br />
+
+        <button id="join-submit" type="submit" disabled="true">
+            Join
+        </button>
+    </form>
+
+    <script>
+        const byId = (id) => document.getElementById(id);
+
+        const joinForm = byId("join-form");
+        const serveridInput = byId("serverid-input");
+        const usernameInput = byId("username-input");
+        const joinSubmit = byId("join-submit");
+
+        // serverid
+        const uuidRegex =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+        function isUuidValid() {
+            return (
+                uuidRegex.test(serveridInput.value) ||
+                serveridInput.value == "1234"
+            );
+        }
+
+        function isUsernameValid() {
+            const username = usernameInput.value.trim();
+            return username.length > 3 && username.length < 20;
+        }
+
+        serveridInput.addEventListener("keyup", function (event) {
+            joinSubmit.disabled = !isUuidValid() || !isUsernameValid();
+        });
+
+        usernameInput.addEventListener("keyup", function (event) {
+            joinSubmit.disabled = !isUuidValid() || !isUsernameValid();
+        });
+
+        joinForm.addEventListener("submit", function (event) {
+            event.preventDefault();
+
+            if (isUuidValid() && isUsernameValid()) {
+                join(serveridInput.value.trim(), usernameInput.value.trim());
+            }
+        });
+
+        function join(serverid, username) {
+            fetch("/join", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    serverid: serverid,
+                    username: username,
+                }),
+            })
+                .then((response) => {
+                    if (response.ok) {
+                        window.location.href = "/room/" + serverid;
+                    } else {
+                        alert("Join Failed :(");
+                    }
+                });
+        }
+    </script>
+</body>
+
+</html>
