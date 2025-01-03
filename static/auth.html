@@ -3,29 +3,41 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Hello, world!</title>
+    <title>Join a room</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="description" content="" />
     <link rel="icon" href="favicon.png" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
 </head>
 
 <body>
-    <form id="join-form">
-        <label for="serverid-input">Server ID:</label><br />
-        <input type="text" id="serverid-input" name="serverid" autocomplete="off" />
+    <div class="section">
+        <div class="container">
+            <form class="box" id="join-form" style="max-width: 500px; margin: auto">
+                <div class="field">
+                    <label class="label">Room ID</label>
+                    <div class="control">
+                        <input class="input" type="text" id="serverid-input" name="serverid" autocomplete="off"
+                            placeholder="0000">
+                    </div>
+                </div>
 
-        <br />
+                <div class="field">
+                    <label class="label">Username</label>
+                    <div class="control">
+                        <input class="input" type="text" id="username-input" name="username" autocomplete="off"
+                            placeholder="Mr. Duck" />
+                    </div>
+                </div>
 
-
-        <label for="username-input">Username:</label><br />
-        <input type="text" id="username-input" name="username" autocomplete="off" />
-
-        <br />
-
-        <button id="join-submit" type="submit" disabled="true">
-            Join
-        </button>
-    </form>
+                <div class="field">
+                    <div class="control">
+                        <button class="button is-link" id="join-submit" type="submit" disabled="true">Join</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <script>
         const byId = (id) => document.getElementById(id);
@@ -36,33 +48,32 @@
         const joinSubmit = byId("join-submit");
 
         // serverid
-        const uuidRegex =
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-
-        function isUuidValid() {
-            return (
-                uuidRegex.test(serveridInput.value) ||
-                serveridInput.value == "1234"
-            );
+        function isServerIdValid() {
+            const serverid = serveridInput.value.trim();
+            return serverid.length === 4 && /^\d+$/.test(serverid);
         }
 
         function isUsernameValid() {
             const username = usernameInput.value.trim();
-            return username.length > 3 && username.length < 20;
+            return username.length >= 4 && username.length <= 20;
         }
 
-        serveridInput.addEventListener("keyup", function (event) {
-            joinSubmit.disabled = !isUuidValid() || !isUsernameValid();
-        });
+        serveridInput.addEventListener("input", function (event) {
+            serveridInput.value = serveridInput.value.replace(/[^0-9]/g, "");
+            serveridInput.value = serveridInput.value.slice(0, 4);
 
-        usernameInput.addEventListener("keyup", function (event) {
-            joinSubmit.disabled = !isUuidValid() || !isUsernameValid();
+            joinSubmit.disabled = !isServerIdValid() || !isUsernameValid();
+        })
+
+        usernameInput.addEventListener("input", function (event) {
+            usernameInput.value = usernameInput.value.slice(0, 20);
+            joinSubmit.disabled = !isServerIdValid() || !isUsernameValid();
         });
 
         joinForm.addEventListener("submit", function (event) {
             event.preventDefault();
 
-            if (isUuidValid() && isUsernameValid()) {
+            if (isServerIdValid() && isUsernameValid()) {
                 join(serveridInput.value.trim(), usernameInput.value.trim());
             }
         });
