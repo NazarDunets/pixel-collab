@@ -56,6 +56,5 @@ func newSecureCookie(name, value, path string) *http.Cookie {
 	cookie.SameSite = http.SameSiteLaxMode
 	cookie.Path = path
 	cookie.HttpOnly = true
-	cookie.Secure = true
 	return cookie
 }

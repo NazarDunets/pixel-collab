@@ -11,149 +11,158 @@
 
 <body>
     <h1>Room #{{.ID}}</h1>
-    <h2>Users:</h2>
-    <ul>
-        {{range .Users}}
-        <li>{{.Name}}</li>
-        {{end}}
-    </ul>
-    <p id="sse">Waiting...</p>
-    <button id="ppp">Post pixel</button>
-    <canvas id="image-grid" style="width:100%;"></canvas>
+    <h2 id="active-user">...</h1>
 
-    <script>
-        const imageGrid = document.getElementById("image-grid");
+        <p id="users">Loading...</p>
+        <canvas id="image-grid" style="width:100%;"></canvas>
 
-        // image rendering
-        let pixels = [];
+        <script>
+            const imageGrid = document.getElementById("image-grid");
 
-        function drawImageGrid(hoverX = null, hoverY = null) {
-            imageGrid.width = imageGrid.width;
-            const gridSize = pixels.length;
-            if (gridSize == 0) {
-                return;
-            }
+            // image rendering
+            let pixels = [];
 
-            const ctx = imageGrid.getContext("2d");
-            ctx.strokeStyle = "black";
-            const pixelSize = imageGrid.width / pixels.length;
+            function drawImageGrid(hoverX = null, hoverY = null) {
+                imageGrid.width = imageGrid.width;
+                const gridSize = pixels.length;
+                if (gridSize == 0) {
+                    return;
+                }
 
-            for (let i = 0; i < gridSize; i++) {
-                for (let j = 0; j < gridSize; j++) {
-                    const color = pixels[i][j];
-                    const x = pixelSize * j;
-                    const y = pixelSize * i;
+                const ctx = imageGrid.getContext("2d");
+                ctx.strokeStyle = "black";
+                const pixelSize = imageGrid.width / pixels.length;
 
-                    if (color != null) {
-                        ctx.fillStyle = color;
-                        ctx.fillRect(x, y, pixelSize, pixelSize);
+                for (let i = 0; i < gridSize; i++) {
+                    for (let j = 0; j < gridSize; j++) {
+                        const color = pixels[i][j];
+                        const x = pixelSize * j;
+                        const y = pixelSize * i;
+
+                        if (color != null) {
+                            ctx.fillStyle = color;
+                            ctx.fillRect(x, y, pixelSize, pixelSize);
+                        }
+
+                        if (hoverX == j && hoverY == i) {
+                            ctx.fillStyle = "#00000022";
+                            ctx.fillRect(x, y, pixelSize, pixelSize);
+                        }
+
+                        ctx.strokeRect(x, y, pixelSize, pixelSize);
                     }
-
-                    if (hoverX == j && hoverY == i) {
-                        ctx.fillStyle = "#00000022";
-                        ctx.fillRect(x, y, pixelSize, pixelSize);
-                    }
-
-                    ctx.strokeRect(x, y, pixelSize, pixelSize);
                 }
             }
-        }
 
-        // image interactions
-        function getPixelCoordsFromEvent(event) {
-            const gridWidth = imageGrid.getBoundingClientRect().width;
-            const pixelSize = gridWidth / pixels.length;
+            // image interactions
+            function getPixelCoordsFromEvent(event) {
+                const gridWidth = imageGrid.getBoundingClientRect().width;
+                const pixelSize = gridWidth / pixels.length;
 
-            const x = Math.floor(event.offsetX / pixelSize);
-            const y = Math.floor(event.offsetY / pixelSize);
+                const x = Math.floor(event.offsetX / pixelSize);
+                const y = Math.floor(event.offsetY / pixelSize);
 
-            return { x, y };
-        }
+                return { x, y };
+            }
 
-        imageGrid.addEventListener("mousemove", (event) => {
-            const { x, y } = getPixelCoordsFromEvent(event);
-            const color = pixels[y][x];
+            imageGrid.addEventListener("mousemove", (event) => {
+                const { x, y } = getPixelCoordsFromEvent(event);
+                const color = pixels[y][x];
 
-            if (color == null) {
-                drawImageGrid(x, y);
-            } else {
+                if (color == null) {
+                    drawImageGrid(x, y);
+                } else {
+                    // reset hover
+                    drawImageGrid();
+                }
+            });
+
+            imageGrid.addEventListener("mouseleave", () => {
                 // reset hover
                 drawImageGrid();
-            }
-        });
-
-        imageGrid.addEventListener("mouseleave", () => {
-            // reset hover
-            drawImageGrid();
-        });
-
-        // on click
-        imageGrid.addEventListener("click", (event) => {
-            const { x, y } = getPixelCoordsFromEvent(event);
-
-            const currentColor = pixels[y][x];
-            if (currentColor != null) {
-                return;
-            }
-
-            sendPixelUpdate(x, y, "0000FF");
-        });
-
-
-        // receiving updates
-        function parseGridData(data) {
-            const result = [];
-            const entries = data.split(",");
-            const gridSize = Number(entries.shift());
-
-            let entriesIndex = 0;
-            for (let i = 0; i < gridSize; i++) {
-                result.push(Array(gridSize).fill(null));
-
-                for (let j = 0; j < gridSize; j++) {
-                    const remoteValue = entries[entriesIndex];
-                    if (remoteValue != "-") {
-                        result[i][j] = "#" + remoteValue;
-                    }
-                    entriesIndex++;
-                }
-            }
-            return result;
-        }
-
-        const eventSource = new EventSource("{{- .ID}}/events");
-
-        eventSource.addEventListener("grid", (event) => {
-            console.log(event.data);
-            pixels = parseGridData(event.data);
-            drawImageGrid();
-        })
-
-        // sending updates
-        function sendPixelUpdate(x, y, color) {
-            fetch("{{- .ID}}/pixel", {
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    x: x,
-                    y: y,
-                    color: color,
-                }),
             });
-        }
 
-        // canvas sizing
-        function resizeCanvas() {
-            imageGrid.height = imageGrid.width;
-            drawImageGrid();
-        }
+            imageGrid.addEventListener("click", (event) => {
+                const { x, y } = getPixelCoordsFromEvent(event);
 
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-        window.addEventListener('orientationchange', resizeCanvas);
-    </script>
+                const currentColor = pixels[y][x];
+                if (currentColor != null) {
+                    return;
+                }
+
+                sendPixelUpdate(x, y, "0000FF");
+            });
+
+            // receiving updates
+            function parseGridData(data) {
+                const result = [];
+                const entries = data.split(",");
+                const gridSize = Number(entries.shift());
+
+                let entriesIndex = 0;
+                for (let i = 0; i < gridSize; i++) {
+                    result.push(Array(gridSize).fill(null));
+
+                    for (let j = 0; j < gridSize; j++) {
+                        const remoteValue = entries[entriesIndex];
+                        if (remoteValue != "-") {
+                            result[i][j] = "#" + remoteValue;
+                        }
+                        entriesIndex++;
+                    }
+                }
+                return result;
+            }
+
+            function parseUsersData(data) {
+                const entries = data.split(",");
+                const activeUser = entries.shift();
+                const users = entries;
+
+                return { activeUser, users };
+            }
+
+            const eventSource = new EventSource("{{- .ID}}/events");
+
+            eventSource.addEventListener("grid", (event) => {
+                console.log(event.data);
+                pixels = parseGridData(event.data);
+                drawImageGrid();
+            })
+
+            eventSource.addEventListener("users", (event) => {
+                console.log(event.data);
+                const { activeUser, users } = parseUsersData(event.data);
+                console.log("users", users);
+                document.getElementById("active-user").innerText = activeUser + " is drawing";
+                document.getElementById("users").innerText = users.join(", ");
+            })
+
+            // sending updates
+            function sendPixelUpdate(x, y, color) {
+                fetch("{{- .ID}}/pixel", {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        x: x,
+                        y: y,
+                        color: color,
+                    }),
+                });
+            }
+
+            // canvas sizing
+            function resizeCanvas() {
+                imageGrid.height = imageGrid.width;
+                drawImageGrid();
+            }
+
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            window.addEventListener('orientationchange', resizeCanvas);
+        </script>
 </body>
 
 </html>
