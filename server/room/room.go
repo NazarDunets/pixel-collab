@@ -15,52 +15,65 @@ import (
 
 const (
 	PATH_ROOM_ID = "roomId"
-	COLOR_NONE   = "-"
+
+	COLOR_NONE = "-"
 
 	EVENT_GRID  = "grid"
 	EVENT_USERS = "users"
+
+	GRID_SIZE = 16
 )
 
-var roomStore = make(map[string]*Room)
+var (
+	storeMutex = sync.Mutex{}
+	roomStore  = make(map[string]*room)
+)
 
 type user struct {
 	username string
 	updates  chan *sse.Event
 }
 
-type Room struct {
-	ID              string
-	PendingActionBy int
-	Users           []user
-	GridSize        int
-	Pixels          [][]string
+type room struct {
+	id              string
+	pendingActionBy int
+	users           []user
+	gridSize        int
+	pixels          [][]string
+	lastGeneratedId int
 	mu              sync.Mutex
 }
 
-type roomTemplateData struct {
-	ID string
-}
-
-type pixelUpdate struct {
+type pixelUpdateRequest struct {
 	Color string `json:"color"`
 	X     int    `json:"x"`
 	Y     int    `json:"y"`
 }
 
+type roomTemplateData struct {
+	ID       string
+	Username string
+}
+
+// hanlders
 func Get(c echo.Context) error {
-	_, err := getCookieUsername(c)
+	username, err := getCookieUsername(c)
 	if err != nil {
 		return c.String(http.StatusUnauthorized, "Unauthorized")
 	}
 
 	roomId := c.Param(PATH_ROOM_ID)
-	room := roomStore[roomId]
+	room := getRoom(roomId)
 
 	if room == nil {
 		return errRoomNotFound(c)
-	} else {
-		c.Render(http.StatusOK, "room.html", roomTemplateData{room.ID})
 	}
+
+	data := roomTemplateData{
+		ID:       roomId,
+		Username: username,
+	}
+	c.Render(http.StatusOK, "room.html", data)
 
 	return nil
 }
@@ -72,7 +85,7 @@ func GetEvents(c echo.Context) error {
 	}
 
 	roomId := c.Param(PATH_ROOM_ID)
-	room := roomStore[roomId]
+	room := getRoom(roomId)
 
 	if room == nil {
 		return errRoomNotFound(c)
@@ -84,8 +97,7 @@ func GetEvents(c echo.Context) error {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	// TODO: error handling
-	// room updates, initial data
+	// room updates, initial data write
 	user := newUser(username)
 	room.addUser(user)
 
@@ -105,8 +117,16 @@ func GetEvents(c echo.Context) error {
 	for {
 		select {
 		case <-c.Request().Context().Done():
-			log.Printf("SSE client connected, ip: %v", c.RealIP())
-			room.removeUser(username)
+			log.Printf("room %s user %s disconnected", roomId, username)
+
+			shouldNotifyUsers := onUserDisconnect(room, username)
+			if shouldNotifyUsers {
+				usersEvent, err := room.newUpdateEvent(EVENT_USERS, marshalUsersTo)
+				if err == nil {
+					room.sendUpdate(usersEvent)
+				}
+			}
+
 			return nil
 
 		case update := <-user.updates:
@@ -124,20 +144,20 @@ func PatchPixel(c echo.Context) error {
 		return c.String(http.StatusUnauthorized, "Unauthorized")
 	}
 
-	var pixelUpdate pixelUpdate
+	var updateRequest pixelUpdateRequest
 
-	if err := c.Bind(&pixelUpdate); err != nil {
+	if err := c.Bind(&updateRequest); err != nil {
 		return c.String(http.StatusBadRequest, "Bad request")
 	}
 
 	roomId := c.Param(PATH_ROOM_ID)
-	room := roomStore[roomId]
+	room := getRoom(roomId)
 
 	if room == nil {
 		return errRoomNotFound(c)
 	}
 
-	err = room.updatePixelColor(pixelUpdate.X, pixelUpdate.Y, pixelUpdate.Color, username)
+	err = room.updatePixelColor(updateRequest.X, updateRequest.Y, updateRequest.Color, username)
 	if err != nil {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
@@ -169,6 +189,42 @@ func InitTestRoom(roomId string) {
 	roomStore[roomId] = newRoom(roomId, 10)
 }
 
+// state management
+func getOrCreateRoom(roomId string) *room {
+	storeMutex.Lock()
+	defer storeMutex.Unlock()
+
+	room := roomStore[roomId]
+	if room != nil {
+		return room
+	}
+
+	room = newRoom(roomId, GRID_SIZE)
+	roomStore[roomId] = room
+	log.Println("room", roomId, "created")
+	return room
+}
+
+func onUserDisconnect(room *room, username string) bool {
+	storeMutex.Lock()
+	defer storeMutex.Unlock()
+	usersLeft := room.removeUser(username)
+	if usersLeft == 0 {
+		delete(roomStore, room.id)
+		log.Println("room", room.id, "deleted")
+		return false
+	}
+
+	return true
+}
+
+func getRoom(roomId string) *room {
+	storeMutex.Lock()
+	defer storeMutex.Unlock()
+
+	return roomStore[roomId]
+}
+
 func newUser(username string) user {
 	return user{
 		username: username,
@@ -176,7 +232,7 @@ func newUser(username string) user {
 	}
 }
 
-func newRoom(id string, gridSize int) *Room {
+func newRoom(id string, gridSize int) *room {
 	pixels := make([][]string, gridSize)
 	for i := 0; i < gridSize; i++ {
 		pixels[i] = make([]string, gridSize)
@@ -185,64 +241,65 @@ func newRoom(id string, gridSize int) *Room {
 		}
 	}
 
-	return &Room{
-		ID:              id,
-		Users:           []user{},
-		Pixels:          pixels,
-		GridSize:        gridSize,
-		PendingActionBy: 0,
+	return &room{
+		id:              id,
+		users:           []user{},
+		pixels:          pixels,
+		gridSize:        gridSize,
+		pendingActionBy: 0,
 		mu:              sync.Mutex{},
+		lastGeneratedId: -1,
 	}
 }
 
 // business logic
-func (r *Room) updatePixelColor(x, y int, color, username string) error {
+func (r *room) updatePixelColor(x, y int, color, username string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	isUserTurn := r.Users[r.PendingActionBy].username == username
+	isUserTurn := r.users[r.pendingActionBy].username == username
 	if !isUserTurn {
 		return errors.New("it's not your turn")
 	}
 
-	if x < 0 || x >= r.GridSize || y < 0 || y >= r.GridSize {
+	if x < 0 || x >= r.gridSize || y < 0 || y >= r.gridSize {
 		return errors.New("invalid pixel coordinates")
 	}
 
-	currentColor := r.Pixels[y][x]
+	currentColor := r.pixels[y][x]
 	if currentColor != COLOR_NONE {
 		return errors.New("pixel color is already set")
 	}
 
-	r.Pixels[y][x] = color
+	r.pixels[y][x] = color
 	return nil
 }
 
-func (r *Room) nextTurn() {
+func (r *room) nextTurn() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.PendingActionBy = max((r.PendingActionBy+1)%len(r.Users), 0)
+	r.pendingActionBy = max((r.pendingActionBy+1)%len(r.users), 0)
 }
 
-func (r *Room) addUser(user user) {
+func (r *room) addUser(user user) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.Users = append(r.Users, user)
+	r.users = append(r.users, user)
 }
 
-func (r *Room) removeUser(username string) int {
+func (r *room) removeUser(username string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for i, user := range r.Users {
+	for i, user := range r.users {
 		if user.username == username {
-			r.Users = append(r.Users[:i], r.Users[i+1:]...)
+			r.users = append(r.users[:i], r.users[i+1:]...)
 
 			// preserve user turn order
-			if i <= r.PendingActionBy {
-				r.PendingActionBy = max(r.PendingActionBy-1, 0)
+			if i <= r.pendingActionBy {
+				r.pendingActionBy = max(r.pendingActionBy-1, 0)
 			}
 
 			close(user.updates)
@@ -251,15 +308,23 @@ func (r *Room) removeUser(username string) int {
 		}
 	}
 
-	return len(r.Users)
+	return len(r.users)
 }
 
-// utils
-func (r *Room) sendUpdate(update *sse.Event) {
+func (r *room) generateUniqueUsername(base string) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for _, user := range r.Users {
+	r.lastGeneratedId++
+	return fmt.Sprintf("%s#%04d", base, r.lastGeneratedId)
+}
+
+// utils
+func (r *room) sendUpdate(update *sse.Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, user := range r.users {
 		go func() {
 			user.updates <- update
 		}()
@@ -271,9 +336,9 @@ func errRoomNotFound(c echo.Context) error {
 }
 
 // marshaling
-type udpateMarshalFn func(r *Room, w io.Writer) error
+type udpateMarshalFn func(r *room, w io.Writer) error
 
-func (r *Room) newUpdateEvent(event string, marshalData udpateMarshalFn) (*sse.Event, error) {
+func (r *room) newUpdateEvent(event string, marshalData udpateMarshalFn) (*sse.Event, error) {
 	buffer := bytes.Buffer{}
 	err := marshalData(r, &buffer)
 	if err != nil {
@@ -286,14 +351,14 @@ func (r *Room) newUpdateEvent(event string, marshalData udpateMarshalFn) (*sse.E
 	}, nil
 }
 
-func marshalGridDataTo(r *Room, w io.Writer) error {
-	if _, err := fmt.Fprint(w, r.GridSize); err != nil {
+func marshalGridDataTo(r *room, w io.Writer) error {
+	if _, err := fmt.Fprint(w, r.gridSize); err != nil {
 		return err
 	}
 
-	for i := 0; i < r.GridSize; i++ {
-		for j := 0; j < r.GridSize; j++ {
-			if _, err := fmt.Fprintf(w, ",%s", r.Pixels[i][j]); err != nil {
+	for i := 0; i < r.gridSize; i++ {
+		for j := 0; j < r.gridSize; j++ {
+			if _, err := fmt.Fprintf(w, ",%s", r.pixels[i][j]); err != nil {
 				return err
 			}
 		}
@@ -302,18 +367,18 @@ func marshalGridDataTo(r *Room, w io.Writer) error {
 	return nil
 }
 
-func marshalUsersTo(r *Room, w io.Writer) error {
+func marshalUsersTo(r *room, w io.Writer) error {
 	pendingActionByUser := ""
-	if len(r.Users) > 0 {
-		pendingActionByIndex := r.PendingActionBy % len(r.Users)
-		pendingActionByUser = r.Users[pendingActionByIndex].username
+	if len(r.users) > 0 {
+		pendingActionByIndex := r.pendingActionBy % len(r.users)
+		pendingActionByUser = r.users[pendingActionByIndex].username
 	}
 
 	if _, err := fmt.Fprint(w, pendingActionByUser); err != nil {
 		return err
 	}
 
-	for _, user := range r.Users {
+	for _, user := range r.users {
 		if _, err := fmt.Fprintf(w, ",%s", user.username); err != nil {
 			return err
 		}

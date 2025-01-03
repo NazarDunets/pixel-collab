@@ -17,10 +17,12 @@
         <canvas id="image-grid" style="width:100%;"></canvas>
 
         <script>
-            const imageGrid = document.getElementById("image-grid");
+            // state
+            const username = "{{.Username}}";
+            let pixels = [];
 
             // image rendering
-            let pixels = [];
+            const imageGrid = document.getElementById("image-grid");
 
             function drawImageGrid(hoverX = null, hoverY = null) {
                 imageGrid.width = imageGrid.width;
@@ -133,8 +135,8 @@
             eventSource.addEventListener("users", (event) => {
                 console.log(event.data);
                 const { activeUser, users } = parseUsersData(event.data);
-                console.log("users", users);
-                document.getElementById("active-user").innerText = activeUser + " is drawing";
+                console.log("activeUser", activeUser, "username", username);
+                document.getElementById("active-user").innerText = activeUser + " is drawing" + (username == activeUser ? " (you)" : "");
                 document.getElementById("users").innerText = users.join(", ");
             })
 

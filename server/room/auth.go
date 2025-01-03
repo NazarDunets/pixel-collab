@@ -23,11 +23,9 @@ func PostJoin(c echo.Context) error {
 		c.String(http.StatusBadRequest, "Bad request")
 	}
 
-	if !roomExists(requestPayload.ServerId) {
-		c.String(http.StatusNotFound, "Room doesn't exist")
-	}
+	room := getOrCreateRoom(requestPayload.ServerId)
 
-	username := requestPayload.Username + "#0000"
+	username := room.generateUniqueUsername(requestPayload.Username)
 	usernameCookie := newSecureCookie(COOKIE_USERNAME, username, "/room/"+requestPayload.ServerId)
 	c.SetCookie(usernameCookie)
 
@@ -43,10 +41,6 @@ func getCookieUsername(c echo.Context) (string, error) {
 		return "", errors.New("empty username")
 	}
 	return cookie.Value, nil
-}
-
-func roomExists(roomId string) bool {
-	return roomStore[roomId] != nil
 }
 
 func newSecureCookie(name, value, path string) *http.Cookie {
