@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+<!-- TODO: rename roomid to roomId everywhere -->
 
 <head>
     <meta charset="UTF-8" />
@@ -17,8 +18,8 @@
                 <div class="field">
                     <label class="label">Room ID</label>
                     <div class="control">
-                        <input class="input" type="text" id="serverid-input" name="serverid" autocomplete="off"
-                            placeholder="0000">
+                        <input class="input" type="text" id="roomid-input" name="roomid" autocomplete="off"
+                            placeholder="0000" value="{{- .RoomIdPrefill}}">
                     </div>
                 </div>
 
@@ -43,55 +44,55 @@
         const byId = (id) => document.getElementById(id);
 
         const joinForm = byId("join-form");
-        const serveridInput = byId("serverid-input");
+        const roomIdInput = byId("roomid-input");
         const usernameInput = byId("username-input");
         const joinSubmit = byId("join-submit");
 
-        // serverid
-        function isServerIdValid() {
-            const serverid = serveridInput.value.trim();
-            return serverid.length === 4 && /^\d+$/.test(serverid);
+        // roomid
+        function isRoomIdValid() {
+            const roomid = roomIdInput.value.trim();
+            return roomid.length === 4 && /^\d+$/.test(roomid);
         }
 
         function isUsernameValid() {
             const username = usernameInput.value.trim();
-            return username.length >= 4 && username.length <= 20;
+            return username.length >= 3 && username.length <= 20;
         }
 
-        serveridInput.addEventListener("input", function (event) {
-            serveridInput.value = serveridInput.value.replace(/[^0-9]/g, "");
-            serveridInput.value = serveridInput.value.slice(0, 4);
+        roomIdInput.addEventListener("input", function (event) {
+            roomIdInput.value = roomIdInput.value.replace(/[^0-9]/g, "");
+            roomIdInput.value = roomIdInput.value.slice(0, 4);
 
-            joinSubmit.disabled = !isServerIdValid() || !isUsernameValid();
+            joinSubmit.disabled = !isRoomIdValid() || !isUsernameValid();
         })
 
         usernameInput.addEventListener("input", function (event) {
             usernameInput.value = usernameInput.value.slice(0, 20);
-            joinSubmit.disabled = !isServerIdValid() || !isUsernameValid();
+            joinSubmit.disabled = !isRoomIdValid() || !isUsernameValid();
         });
 
         joinForm.addEventListener("submit", function (event) {
             event.preventDefault();
 
-            if (isServerIdValid() && isUsernameValid()) {
-                join(serveridInput.value.trim(), usernameInput.value.trim());
+            if (isRoomIdValid() && isUsernameValid()) {
+                join(roomIdInput.value.trim(), usernameInput.value.trim());
             }
         });
 
-        function join(serverid, username) {
+        function join(roomId, username) {
             fetch("/join", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    serverid: serverid,
+                    roomId: roomId,
                     username: username,
                 }),
             })
                 .then((response) => {
                     if (response.ok) {
-                        window.location.href = "/room/" + serverid;
+                        window.location.href = "/room/" + roomId;
                     } else {
                         alert("Join Failed :(");
                     }

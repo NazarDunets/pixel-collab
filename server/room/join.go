@@ -13,8 +13,27 @@ const (
 )
 
 type joinRequestPayload struct {
-	ServerId string `json:"serverId"`
+	ServerId string `json:"roomId"`
 	Username string `json:"username"`
+}
+
+type joinQueryParams struct {
+	RoomId string `query:"roomId"`
+}
+
+type joinTemplateData struct {
+	RoomIdPrefill string
+}
+
+func GetJoin(c echo.Context) error {
+	var queyParams joinQueryParams
+	var templateData joinTemplateData
+
+	if err := c.Bind(&queyParams); err == nil {
+		templateData.RoomIdPrefill = queyParams.RoomId
+	}
+
+	return c.Render(http.StatusOK, "join.html", templateData)
 }
 
 func PostJoin(c echo.Context) error {

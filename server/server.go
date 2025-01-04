@@ -1,14 +1,13 @@
 package main
 
 import (
+	"net/http"
 	"pixel-collab/server/room"
 	"pixel-collab/server/util"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
-
-const TEST_ID = "1234"
 
 func main() {
 	e := echo.New()
@@ -18,7 +17,11 @@ func main() {
 
 	e.Use(middleware.Logger())
 
-	e.File("/", "static/auth.html")
+	e.GET("/", func(c echo.Context) error {
+		return c.Redirect(http.StatusTemporaryRedirect, "/join")
+	})
+
+	e.GET("/join", room.GetJoin)
 	e.POST("/join", room.PostJoin)
 
 	e.GET("/room/:"+room.PATH_ROOM_ID, room.Get)
