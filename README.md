@@ -1,6 +1,6 @@
 # Pixel Collab
 
-"Party style" game where users take turns to draw a pixel art image. Only empty pixels can be filled, no overriding of others' art vision.
+"Party style" game where users take turns to draw a pixel art image. Only empty pixels can be filled, no overriding others' art vision.
 
 Project was created for exploring web dev with Golang.
 
