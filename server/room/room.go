@@ -10,6 +10,7 @@ import (
 	"pixel-collab/server/sse"
 	"pixel-collab/server/util"
 	"sync"
+	"unicode"
 
 	"github.com/labstack/echo/v4"
 )
@@ -59,13 +60,16 @@ type roomTemplateData struct {
 
 // hanlders
 func Get(c echo.Context) error {
-	requestedUsername, err := getNonEmptyCookie(c, COOKIE_REQUESTED_USERNAME)
-	if err != nil {
-		return c.String(http.StatusUnauthorized, "Unauthorized")
+	roomId := c.Param(PATH_ROOM_ID)
+	if err := validateRoomId(c, roomId); err != nil {
+		return err
 	}
 
-	roomId := c.Param(PATH_ROOM_ID)
-	// TODO: validate roomId
+	requestedUsername, err := getNonEmptyCookie(c, COOKIE_REQUESTED_USERNAME)
+	if err != nil {
+		return joinRoomRedirect(c, roomId)
+	}
+
 	room := getOrCreateRoom(roomId)
 
 	username := room.generateUniqueUsername(requestedUsername)
@@ -82,12 +86,16 @@ func Get(c echo.Context) error {
 }
 
 func GetEvents(c echo.Context) error {
-	username, err := getNonEmptyCookie(c, COOKIE_USERNAME)
-	if err != nil {
-		return c.String(http.StatusUnauthorized, "Unauthorized")
+	roomId := c.Param(PATH_ROOM_ID)
+	if err := validateRoomId(c, roomId); err != nil {
+		return err
 	}
 
-	roomId := c.Param(PATH_ROOM_ID)
+	username, err := getNonEmptyCookie(c, COOKIE_USERNAME)
+	if err != nil {
+		return joinRoomRedirect(c, roomId)
+	}
+
 	room := getOrCreateRoom(roomId)
 
 	// sse setup
@@ -240,6 +248,20 @@ func newRoom(id string, gridSize int) *room {
 }
 
 // business logic
+func validateRoomId(c echo.Context, roomId string) error {
+	if len(roomId) != 4 {
+		return c.String(http.StatusBadRequest, "Invalid room id")
+	}
+
+	for _, char := range roomId {
+		if !unicode.IsDigit(char) {
+			return c.String(http.StatusBadRequest, "Invalid room id")
+		}
+	}
+
+	return nil
+}
+
 func (r *room) updatePixelColor(x, y int, color, username string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -320,6 +342,10 @@ func (r *room) sendUpdate(update *sse.Event) {
 
 func errRoomNotFound(c echo.Context) error {
 	return c.String(http.StatusNotFound, "Room doesn't exist")
+}
+
+func joinRoomRedirect(c echo.Context, roomId string) error {
+	return c.Redirect(http.StatusSeeOther, "/join?roomId="+roomId)
 }
 
 // marshaling

@@ -33,5 +33,5 @@ func main() {
 	e.GET("/room/:"+room.PATH_ROOM_ID+"/events", room.GetEvents)
 	e.PATCH("/room/:"+room.PATH_ROOM_ID+"/pixel", room.PatchPixel)
 
-	e.Logger.Fatal(e.Start(":" + util.GetPort()))
+	e.Logger.Fatal(e.Start(util.GetStartAddress()))
 }

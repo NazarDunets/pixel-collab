@@ -43,7 +43,14 @@ func PostJoin(c echo.Context) error {
 		c.String(http.StatusBadRequest, "Bad request")
 	}
 
-	// TODO: validate username, validate roomId
+	if err := validateRoomId(c, requestPayload.ServerId); err != nil {
+		return err
+	}
+
+	if err := validateUsername(c, requestPayload.Username); err != nil {
+		return err
+	}
+
 	username := requestPayload.Username
 
 	getOrCreateRoom(requestPayload.ServerId)
@@ -60,9 +67,16 @@ func getNonEmptyCookie(c echo.Context, name string) (string, error) {
 		return "", err
 	}
 	if cookie.Value == "" {
-		return "", errors.New("empty username")
+		return "", errors.New("empty cookie value")
 	}
 	return cookie.Value, nil
+}
+
+func validateUsername(c echo.Context, username string) error {
+	if len(username) < 3 || len(username) > 20 {
+		return c.String(http.StatusBadRequest, "Invalid username")
+	}
+	return nil
 }
 
 func newCookie(name, value, path string) *http.Cookie {
