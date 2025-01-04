@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"pixel-collab/server/sse"
+	"pixel-collab/server/util"
 	"sync"
 
 	"github.com/labstack/echo/v4"
@@ -51,8 +52,9 @@ type pixelUpdateRequest struct {
 }
 
 type roomTemplateData struct {
-	ID       string
-	Username string
+	ID         string
+	Username   string
+	InviteLink string
 }
 
 // hanlders
@@ -70,8 +72,9 @@ func Get(c echo.Context) error {
 	c.SetCookie(newCookie(COOKIE_USERNAME, username, "/room/"+roomId))
 
 	data := roomTemplateData{
-		ID:       roomId,
-		Username: username,
+		ID:         roomId,
+		Username:   username,
+		InviteLink: fmt.Sprintf("%s/join?roomId=%s", util.GetBaseUrl(), roomId),
 	}
 	c.Render(http.StatusOK, "room.html", data)
 
@@ -171,18 +174,6 @@ func PatchPixel(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusOK)
-}
-
-func InitTestRoom(roomId string) {
-	pixels := make([][]string, 10)
-	for i := 0; i < 10; i++ {
-		pixels[i] = make([]string, 10)
-		for j := 0; j < 10; j++ {
-			pixels[i][j] = COLOR_NONE
-		}
-	}
-
-	roomStore[roomId] = newRoom(roomId, 10)
 }
 
 // state management

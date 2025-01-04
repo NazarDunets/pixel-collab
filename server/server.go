@@ -1,10 +1,12 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"pixel-collab/server/room"
 	"pixel-collab/server/util"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -12,8 +14,11 @@ import (
 func main() {
 	e := echo.New()
 
+	if err := godotenv.Load(); err != nil {
+		log.Fatalln("No .env file found")
+	}
+
 	util.SetupTemplates(e)
-	room.InitTestRoom("1234")
 
 	e.Use(middleware.Logger())
 
@@ -28,5 +33,5 @@ func main() {
 	e.GET("/room/:"+room.PATH_ROOM_ID+"/events", room.GetEvents)
 	e.PATCH("/room/:"+room.PATH_ROOM_ID+"/pixel", room.PatchPixel)
 
-	e.Logger.Fatal(e.Start("localhost:1323"))
+	e.Logger.Fatal(e.Start(":" + util.GetPort()))
 }

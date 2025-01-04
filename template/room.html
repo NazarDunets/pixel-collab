@@ -13,7 +13,9 @@
 <body style="padding: 16px;">
     <div class="section">
         <div class="container">
-            <h6 class="">Room#{{.ID}}</h6>
+            <h6 class="">Room#{{.ID}}
+                <a id="copy-invite-link">(copy invite link)</a>
+            </h6>
             <h5 class="title is-5" id="active-user">...</h5>
             <div id="alone-warning" hidden><span class="tag is-warning">You're alone</span></div>
         </div>
@@ -280,6 +282,11 @@
 
         window.addEventListener('resize', resizeCanvases);
         window.addEventListener('orientationchange', resizeCanvases);
+
+        // invite link
+        document.getElementById("copy-invite-link").addEventListener("click", () => {
+            navigator.clipboard.writeText("{{.InviteLink}}");
+        });
     </script>
 </body>
 
