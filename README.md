@@ -9,6 +9,7 @@ Project was created for exploring web dev with Golang.
 - No frontend frameworks/dependencies
 - Live reloading with [Air](https://github.com/air-verse/air)
 - SSE used for realtime updates
+- Data storage was not a primary focus, so it is done in-memory for simplicity's sake
 
 ## Demo:
 ![Demo](demo/pixel-collab-demo.gif "Demo")
