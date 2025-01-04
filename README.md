@@ -10,4 +10,5 @@ Project was created for exploring web dev with Golang.
 - Live reloading with [Air](https://github.com/air-verse/air)
 - SSE used for realtime updates
 
-
+## Demo:
+![Demo](demo/pixel-collab-demo.gif "Demo")
