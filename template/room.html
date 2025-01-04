@@ -12,26 +12,94 @@
 
 <body style="padding: 16px;">
     <div class="section">
-        <h6 class="">Room#{{.ID}}</h6>
-        <h5 class="title is-5" id="active-user">...</h5>
-        <div id="alone-warning" hidden><span class="tag is-warning">You're alone</span></div>
+        <div class="container">
+            <h6 class="">Room#{{.ID}}</h6>
+            <h5 class="title is-5" id="active-user">...</h5>
+            <div id="alone-warning" hidden><span class="tag is-warning">You're alone</span></div>
+        </div>
     </div>
 
+
     <div class="container">
+        <div style="max-width: 768px; margin: auto; height: 64px">
+            <canvas id="color-picker" style="width:100%; height: 100%;"></canvas>
+        </div>
+
+        <br />
+
         <div style="max-width: 768px; margin: auto;">
             <canvas id="image-grid" style="width:100%;"></canvas>
         </div>
     </div>
 
     <div class="section">
-        <h6 class="title is-6">Players:</h6>
-        <p id="users">Loading...</p>
+        <div class="container">
+            <h6 class="title is-6">Players:</h6>
+            <p id="users">Loading...</p>
+        </div>
     </div>
 
     <script>
         // state
+        const colors = ["#1a1c2c", "#5d275d", "#b13e53", "#ef7d57", "#ffcd75", "#a7f070", "#38b764", "#257179", "#29366f", "#3b5dc9", "#41a6f6", "#73eff7", "#f4f4f4", "#94b0c2", "#566c86", "#333c57"];
         const username = "{{.Username}}";
+
+        let selectedColor = "#1a1c2c"
         let pixels = [];
+
+        const colorPickerRows = 2
+        const colorPickerColumns = 8
+
+        // TODO: configurable colors
+        // color selector
+        const colorPicker = document.getElementById("color-picker");
+        function drawColorPicker() {
+            colorPicker.width = colorPicker.width;
+            const selectedBorderInset = 8;
+
+            const cellWidth = colorPicker.width / colorPickerColumns;
+            const cellHeight = colorPicker.height / colorPickerRows;
+
+            const ctx = colorPicker.getContext("2d");
+            ctx.strokeStyle = "#000000";
+
+            let colorIndex = 0;
+            for (let i = 0; i < colorPickerRows; i++) {
+                for (let j = 0; j < colorPickerColumns; j++) {
+                    ctx.fillStyle = colors[colorIndex];
+                    ctx.fillRect(cellWidth * j, cellHeight * i, cellWidth, cellHeight);
+
+                    if (colors[colorIndex] == selectedColor) {
+                        ctx.strokeRect(
+                            cellWidth * j + selectedBorderInset,
+                            cellHeight * i + selectedBorderInset,
+                            cellWidth - selectedBorderInset * 2,
+                            cellHeight - selectedBorderInset * 2
+                        );
+                    }
+
+                    colorIndex++;
+                }
+            }
+        }
+
+        function getColorCellFromEvent(event) {
+            const rect = colorPicker.getBoundingClientRect();
+            const cellWidth = rect.width / colorPickerColumns;
+            const cellHeight = rect.height / colorPickerRows;
+
+            const x = Math.floor(event.offsetX / cellWidth);
+            const y = Math.floor(event.offsetY / cellHeight);
+
+            const colorIndex = y * colorPickerColumns + x;
+
+            return colors[colorIndex];
+        }
+
+        colorPicker.addEventListener("click", (event) => {
+            selectedColor = getColorCellFromEvent(event);
+            drawColorPicker();
+        });
 
         // image rendering
         const imageGrid = document.getElementById("image-grid");
@@ -46,7 +114,22 @@
             const ctx = imageGrid.getContext("2d");
             ctx.strokeStyle = "black";
             const pixelSize = imageGrid.width / pixels.length;
+            const bgPixelSize = pixelSize / 4;
 
+            // background
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, imageGrid.width, imageGrid.height);
+
+            ctx.fillStyle = "#CCCCCC";
+            for (let i = 0; i < gridSize * 4; i++) {
+                for (let j = i % 2; j < gridSize * 4; j += 2) {
+                    const x = bgPixelSize * j;
+                    const y = bgPixelSize * i;
+                    ctx.fillRect(x, y, bgPixelSize, bgPixelSize);
+                }
+            }
+
+            // image
             for (let i = 0; i < gridSize; i++) {
                 for (let j = 0; j < gridSize; j++) {
                     const color = pixels[i][j];
@@ -104,7 +187,7 @@
                 return;
             }
 
-            sendPixelUpdate(x, y, "0000FF");
+            sendPixelUpdate(x, y, selectedColor.replace("#", ""));
         });
 
         // receiving updates
@@ -169,15 +252,34 @@
             });
         }
 
-        // canvas sizing
-        function resizeCanvas() {
-            imageGrid.height = imageGrid.width;
-            drawImageGrid();
+        // canvases sizing
+
+        // proper scale for sharp canvas graphics
+        function setupCanvas(canvas) {
+            var dpr = window.devicePixelRatio || 1;
+            var rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            var ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            return ctx;
         }
 
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-        window.addEventListener('orientationchange', resizeCanvas);
+        function resizeCanvases() {
+            // image grid
+            imageGrid.height = imageGrid.width;
+            setupCanvas(imageGrid);
+            drawImageGrid();
+
+            // color picker
+            setupCanvas(colorPicker);
+            drawColorPicker();
+        }
+
+        resizeCanvases();
+
+        window.addEventListener('resize', resizeCanvases);
+        window.addEventListener('orientationchange', resizeCanvases);
     </script>
 </body>
 
