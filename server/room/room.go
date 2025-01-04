@@ -200,6 +200,7 @@ func getOrCreateRoom(roomId string) *room {
 	return room
 }
 
+// TODO: with only one user present, refreshing the page causes room reset (recreation). Add a grace period for room deletion?
 func onUserDisconnect(room *room, username string) bool {
 	storeMutex.Lock()
 	defer storeMutex.Unlock()
